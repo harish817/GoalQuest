@@ -15,4 +15,5 @@ wheels/
 
 # Environment files
 .env
+.env.example
 goalquest/.env

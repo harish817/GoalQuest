@@ -122,3 +122,4 @@ To use GoalQuest directly inside Claude Desktop, add this to your `claude_deskto
 
 ## 📜 License
 MIT
+
