@@ -1,0 +1,936 @@
+<!DOCTYPE html>
+<html lang="en" class="dark">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>GoalQuest - Gamified Goal Achievement</title>
+  <script src="https://www.gstatic.com/antigravity/web/dev/tailwindcss.min.js"></script>
+  <style>
+    @keyframes pulse-glow {
+      0%, 100% { box-shadow: 0 0 15px rgba(245, 158, 11, 0.35); }
+      50% { box-shadow: 0 0 25px rgba(245, 158, 11, 0.65); }
+    }
+    @keyframes float {
+      0%, 100% { transform: translateY(0); }
+      50% { transform: translateY(-4px); }
+    }
+    .glow-amber { animation: pulse-glow 2.5s infinite; }
+    .floating { animation: float 3s ease-in-out infinite; }
+    .custom-scroll::-webkit-scrollbar { width: 6px; height: 6px; }
+    .custom-scroll::-webkit-scrollbar-track { background: rgba(30, 41, 59, 0.5); border-radius: 4px; }
+    .custom-scroll::-webkit-scrollbar-thumb { background: rgba(100, 116, 139, 0.5); border-radius: 4px; }
+    .custom-scroll::-webkit-scrollbar-thumb:hover { background: rgba(148, 163, 184, 0.7); }
+  </style>
+</head>
+<body class="bg-slate-950 text-slate-100 min-h-screen antialiased font-sans selection:bg-amber-500 selection:text-slate-900 pb-12">
+  <canvas id="confetti-canvas" class="fixed inset-0 pointer-events-none z-50"></canvas>
+
+  <!-- Navigation Bar -->
+  <header class="sticky top-0 z-40 bg-slate-900/80 backdrop-blur-md border-b border-slate-800">
+    <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between">
+      <div class="flex items-center gap-3">
+        <div class="w-10 h-10 rounded-xl bg-gradient-to-br from-amber-400 to-amber-600 flex items-center justify-center shadow-lg shadow-amber-500/20 text-slate-950 font-black text-xl">
+          ⚔️
+        </div>
+        <div>
+          <span class="text-xl font-extrabold bg-gradient-to-r from-amber-300 via-orange-400 to-amber-500 bg-clip-text text-transparent">GoalQuest</span>
+          <span class="text-xs font-semibold px-2 py-0.5 ml-2 bg-amber-500/10 text-amber-400 border border-amber-500/20 rounded-full">RPG Realm</span>
+        </div>
+      </div>
+
+      <div class="flex items-center gap-4">
+        <!-- Backend Status Badge -->
+        <div id="connection-pill" class="flex items-center gap-2 px-3 py-1 bg-emerald-500/10 border border-emerald-500/20 rounded-full text-xs font-medium text-emerald-400">
+          <span class="w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></span>
+          <span id="connection-text">Live Server</span>
+        </div>
+
+        <!-- Coach Chat Toggle -->
+        <button onclick="toggleCoachChat()" class="flex items-center gap-2 px-4 py-1.5 bg-slate-800 hover:bg-slate-700 border border-slate-700 text-slate-200 text-sm font-semibold rounded-lg transition-all shadow-sm">
+          <span>🧙‍♂️</span>
+          <span>Coach</span>
+        </button>
+
+        <!-- New Goal Button -->
+        <button onclick="openNewGoalModal()" class="flex items-center gap-2 px-4 py-1.5 bg-gradient-to-r from-amber-500 to-orange-500 hover:from-amber-400 hover:to-orange-400 text-slate-950 text-sm font-bold rounded-lg shadow-md shadow-amber-500/20 transition-all active:scale-95">
+          <span>+</span>
+          <span>New Goal</span>
+        </button>
+      </div>
+    </div>
+  </header>
+
+  <main class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-6 space-y-6">
+
+    <!-- CHARACTER HUD / STATS BANNER -->
+    <section class="bg-gradient-to-br from-slate-900 via-slate-900 to-slate-850 border border-slate-800 rounded-2xl p-6 shadow-xl relative overflow-hidden">
+      <div class="absolute -right-10 -bottom-10 w-64 h-64 bg-amber-500/5 rounded-full blur-3xl pointer-events-none"></div>
+      <div class="absolute -left-10 -top-10 w-64 h-64 bg-indigo-500/5 rounded-full blur-3xl pointer-events-none"></div>
+
+      <div class="grid grid-cols-1 md:grid-cols-12 gap-6 items-center">
+        <!-- Player Level & Avatar -->
+        <div class="md:col-span-4 flex items-center gap-5">
+          <div class="relative">
+            <div class="w-20 h-20 rounded-2xl bg-gradient-to-br from-slate-800 to-slate-700 border-2 border-amber-500/50 flex items-center justify-center text-4xl shadow-lg glow-amber">
+              🛡️
+            </div>
+            <div id="level-badge" class="absolute -bottom-2 -right-2 bg-gradient-to-r from-amber-500 to-orange-500 text-slate-950 font-black text-xs px-2.5 py-0.5 rounded-full shadow-md border border-slate-950">
+              LVL 1
+            </div>
+          </div>
+          <div>
+            <div class="flex items-center gap-2">
+              <h1 id="user-name" class="text-2xl font-black text-white">Harish</h1>
+              <span id="user-rank" class="text-xs font-bold uppercase tracking-wider px-2 py-0.5 rounded bg-indigo-500/20 text-indigo-300 border border-indigo-500/30">
+                Apprentice
+              </span>
+            </div>
+            <p id="active-goal-title" class="text-sm font-medium text-slate-400 mt-1 truncate max-w-xs">
+              Learn Linear Algebra
+            </p>
+            <div class="flex items-center gap-3 mt-2 text-xs text-slate-400">
+              <span class="flex items-center gap-1 font-semibold text-emerald-400">
+                <span id="pace-indicator">⚡ On Pace</span>
+              </span>
+              <span>•</span>
+              <span id="progress-text" class="text-slate-300 font-medium">0% Completed</span>
+            </div>
+          </div>
+        </div>
+
+        <!-- XP & Daily Cap Progress -->
+        <div class="md:col-span-5 space-y-3">
+          <!-- Total XP Bar -->
+          <div>
+            <div class="flex justify-between text-xs font-semibold mb-1">
+              <span class="text-amber-400 flex items-center gap-1">✨ Experience Points (XP)</span>
+              <span class="text-slate-400"><strong id="current-xp" class="text-white">0</strong> / <span id="next-lvl-xp">50</span> XP to next level</span>
+            </div>
+            <div class="w-full h-3 bg-slate-800 rounded-full overflow-hidden p-0.5 border border-slate-700/60">
+              <div id="xp-bar-fill" class="h-full bg-gradient-to-r from-amber-500 via-yellow-400 to-amber-300 rounded-full transition-all duration-700" style="width: 0%"></div>
+            </div>
+          </div>
+
+          <!-- Daily Cap Meter -->
+          <div>
+            <div class="flex justify-between text-xs font-semibold mb-1">
+              <span class="text-slate-400 flex items-center gap-1">⏱️ Today's XP Yield</span>
+              <span class="text-slate-400"><strong id="today-xp" class="text-white">0</strong> / 400 Daily Cap</span>
+            </div>
+            <div class="w-full h-2 bg-slate-800 rounded-full overflow-hidden border border-slate-700/40">
+              <div id="daily-cap-fill" class="h-full bg-gradient-to-r from-sky-400 to-indigo-500 rounded-full transition-all duration-500" style="width: 0%"></div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Streaks & Freeze Tokens -->
+        <div class="md:col-span-3 flex items-center justify-around bg-slate-800/50 border border-slate-800 rounded-xl p-3">
+          <div class="text-center">
+            <div class="text-2xl font-black text-orange-400 flex items-center justify-center gap-1">
+              🔥 <span id="streak-count">1</span>
+            </div>
+            <div class="text-xs text-slate-400 font-semibold mt-0.5">Day Streak</div>
+            <div class="text-[11px] text-amber-500/80 font-medium" id="streak-mult">+2% XP</div>
+          </div>
+          <div class="h-8 w-px bg-slate-700"></div>
+          <div class="text-center">
+            <div class="text-2xl font-black text-sky-400 flex items-center justify-center gap-1">
+              🛡️ <span id="freeze-count">1</span>
+            </div>
+            <div class="text-xs text-slate-400 font-semibold mt-0.5">Freeze Shields</div>
+            <div class="text-[11px] text-sky-400/80 font-medium">Streak Protected</div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- MAIN INTERACTIVE SECTION -->
+    <div class="grid grid-cols-1 lg:grid-cols-12 gap-6">
+
+      <!-- LEFT COLUMN: DAILY CHECK-IN & QUEST BOARD -->
+      <div class="lg:col-span-8 space-y-6">
+
+        <!-- DAILY ENERGY STATION & CHECK-IN -->
+        <section class="bg-slate-900 border border-slate-800 rounded-2xl p-5 shadow-lg">
+          <div class="flex items-center justify-between mb-4">
+            <div class="flex items-center gap-2">
+              <span class="text-xl">⚡</span>
+              <h2 class="text-lg font-bold text-white">Daily Energy & Check-In Station</h2>
+            </div>
+            <span class="text-xs text-slate-400">Match tasks to your stamina</span>
+          </div>
+
+          <div class="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-4">
+            <!-- Energy Slider -->
+            <div class="bg-slate-850 border border-slate-800 p-4 rounded-xl">
+              <div class="flex justify-between items-center mb-2">
+                <label class="text-xs font-bold text-slate-300">Energy Level</label>
+                <span id="energy-label" class="text-xs font-extrabold text-amber-400 bg-amber-500/10 px-2 py-0.5 rounded">⚡⚡⚡ Medium (3)</span>
+              </div>
+              <input id="energy-slider" type="range" min="1" max="5" value="3" class="w-full accent-amber-500 cursor-pointer" oninput="updateEnergyDisplay(this.value)">
+              <div class="flex justify-between text-[11px] text-slate-500 mt-1">
+                <span>1 - Exhausted</span>
+                <span>3 - Normal</span>
+                <span>5 - Supercharged</span>
+              </div>
+            </div>
+
+            <!-- Mood Selector -->
+            <div class="bg-slate-850 border border-slate-800 p-4 rounded-xl">
+              <div class="flex justify-between items-center mb-2">
+                <label class="text-xs font-bold text-slate-300">Current Mood</label>
+                <span id="mood-label" class="text-xs font-extrabold text-indigo-400 bg-indigo-500/10 px-2 py-0.5 rounded">Focused (4)</span>
+              </div>
+              <div class="flex justify-between gap-2 mt-2">
+                <button type="button" onclick="setMood(1)" class="mood-btn flex-1 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-lg border border-transparent">😫</button>
+                <button type="button" onclick="setMood(2)" class="mood-btn flex-1 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-lg border border-transparent">😕</button>
+                <button type="button" onclick="setMood(3)" class="mood-btn flex-1 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-lg border border-transparent">😐</button>
+                <button type="button" onclick="setMood(4)" class="mood-btn flex-1 py-1.5 rounded-lg bg-indigo-500/20 text-lg border border-indigo-500/50">🙂</button>
+                <button type="button" onclick="setMood(5)" class="mood-btn flex-1 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-lg border border-transparent">🤩</button>
+              </div>
+            </div>
+          </div>
+
+          <div class="flex items-center gap-3">
+            <input id="checkin-note" type="text" placeholder="Daily focus notes or reflections (optional)..." class="flex-1 bg-slate-950 border border-slate-800 rounded-xl px-4 py-2.5 text-sm text-slate-200 placeholder-slate-500 focus:outline-none focus:border-amber-500">
+            <button onclick="submitCheckin()" class="px-5 py-2.5 bg-gradient-to-r from-amber-500 to-orange-500 hover:from-amber-400 hover:to-orange-400 text-slate-950 font-bold text-sm rounded-xl shadow-md transition-all active:scale-95 flex items-center gap-2">
+              <span>🎯</span>
+              <span>Run Daily Loop</span>
+            </button>
+          </div>
+
+          <!-- Coach Adaptive Message Box -->
+          <div id="coach-banner" class="mt-4 p-4 rounded-xl bg-gradient-to-r from-slate-850 to-indigo-950/40 border border-indigo-500/20 flex items-start gap-3">
+            <div class="text-2xl mt-0.5">🧙‍♂️</div>
+            <div class="flex-1">
+              <div class="flex items-center justify-between">
+                <span class="text-xs font-bold text-indigo-400 tracking-wide uppercase">AI Coach • Mentor Advice</span>
+                <span id="bandit-arm-tag" class="text-[10px] font-semibold bg-indigo-500/10 text-indigo-300 border border-indigo-500/20 px-2 py-0.5 rounded-full">why_reminder</span>
+              </div>
+              <p id="coach-message-text" class="text-sm text-slate-300 mt-1 italic leading-relaxed">
+                "Welcome to today's campaign! Pick an easy quest to start rolling, then conquer the boss when you're in the zone."
+              </p>
+            </div>
+          </div>
+        </section>
+
+        <!-- QUEST ADVENTURE BOARD -->
+        <section class="space-y-4">
+          <div class="flex items-center justify-between">
+            <div class="flex items-center gap-2">
+              <span class="text-xl">🗺️</span>
+              <h2 class="text-lg font-bold text-white">Active Quest Board</h2>
+            </div>
+            <div class="flex items-center gap-2 text-xs">
+              <span class="px-2 py-1 rounded bg-slate-850 border border-slate-800 text-slate-400">🟢 Unlocked</span>
+              <span class="px-2 py-1 rounded bg-slate-850 border border-slate-800 text-slate-500">🔒 Locked</span>
+            </div>
+          </div>
+
+          <div id="quests-container" class="space-y-3">
+            <!-- Quests dynamically injected here -->
+          </div>
+        </section>
+
+      </div>
+
+      <!-- RIGHT COLUMN: BADGES & FOCUS TIPS & INVENTORY -->
+      <div class="lg:col-span-4 space-y-6">
+
+        <!-- ACHIEVEMENTS & BADGES -->
+        <section class="bg-slate-900 border border-slate-800 rounded-2xl p-5 shadow-lg">
+          <div class="flex items-center justify-between mb-4">
+            <div class="flex items-center gap-2">
+              <span class="text-xl">🏆</span>
+              <h3 class="text-base font-bold text-white">Earned Badges</h3>
+            </div>
+            <span id="badges-count" class="text-xs font-semibold px-2 py-0.5 rounded-full bg-amber-500/10 text-amber-400 border border-amber-500/20">0 / 6</span>
+          </div>
+
+          <div id="badges-grid" class="grid grid-cols-2 gap-3">
+            <!-- First Blood -->
+            <div id="badge-first_blood" class="badge-item p-3 rounded-xl border border-slate-800 bg-slate-850 opacity-40 transition-all flex flex-col items-center text-center">
+              <span class="text-2xl mb-1">🩸</span>
+              <span class="text-xs font-bold text-slate-300">First Blood</span>
+              <span class="text-[10px] text-slate-500 mt-0.5">Finish 1st Task</span>
+            </div>
+            <!-- Deep Work -->
+            <div id="badge-deep_work" class="badge-item p-3 rounded-xl border border-slate-800 bg-slate-850 opacity-40 transition-all flex flex-col items-center text-center">
+              <span class="text-2xl mb-1">🧘</span>
+              <span class="text-xs font-bold text-slate-300">Deep Work</span>
+              <span class="text-[10px] text-slate-500 mt-0.5">3x 50+ min focus</span>
+            </div>
+            <!-- Boss Slayer -->
+            <div id="badge-boss_slayer" class="badge-item p-3 rounded-xl border border-slate-800 bg-slate-850 opacity-40 transition-all flex flex-col items-center text-center">
+              <span class="text-2xl mb-1">👑</span>
+              <span class="text-xs font-bold text-slate-300">Boss Slayer</span>
+              <span class="text-[10px] text-slate-500 mt-0.5">Defeat Boss Task</span>
+            </div>
+            <!-- Week Warrior -->
+            <div id="badge-week_warrior" class="badge-item p-3 rounded-xl border border-slate-800 bg-slate-850 opacity-40 transition-all flex flex-col items-center text-center">
+              <span class="text-2xl mb-1">⚔️</span>
+              <span class="text-xs font-bold text-slate-300">Week Warrior</span>
+              <span class="text-[10px] text-slate-500 mt-0.5">7-Day Streak</span>
+            </div>
+            <!-- Comeback Kid -->
+            <div id="badge-comeback_kid" class="badge-item p-3 rounded-xl border border-slate-800 bg-slate-850 opacity-40 transition-all flex flex-col items-center text-center">
+              <span class="text-2xl mb-1">🚀</span>
+              <span class="text-xs font-bold text-slate-300">Comeback Kid</span>
+              <span class="text-[10px] text-slate-500 mt-0.5">Return after 3d</span>
+            </div>
+            <!-- Month Monk -->
+            <div id="badge-month_monk" class="badge-item p-3 rounded-xl border border-slate-800 bg-slate-850 opacity-40 transition-all flex flex-col items-center text-center">
+              <span class="text-2xl mb-1">🌟</span>
+              <span class="text-xs font-bold text-slate-300">Month Monk</span>
+              <span class="text-[10px] text-slate-500 mt-0.5">30-Day Streak</span>
+            </div>
+          </div>
+        </section>
+
+        <!-- RECENT LOOT VAULT -->
+        <section class="bg-slate-900 border border-slate-800 rounded-2xl p-5 shadow-lg">
+          <div class="flex items-center justify-between mb-3">
+            <div class="flex items-center gap-2">
+              <span class="text-xl">🎁</span>
+              <h3 class="text-base font-bold text-white">Loot Vault</h3>
+            </div>
+            <span class="text-xs text-amber-400 font-medium">30% Drop Rate</span>
+          </div>
+          <div id="loot-history" class="space-y-2 text-xs">
+            <div class="p-3 bg-slate-850 rounded-xl border border-slate-800 flex items-center justify-between text-slate-300">
+              <span class="flex items-center gap-2"><span>🛡️</span> Streak Freeze Shield</span>
+              <span class="text-slate-500 text-[11px]">Ready in Inventory</span>
+            </div>
+          </div>
+        </section>
+
+        <!-- COACH FOCUS TIPS -->
+        <section class="bg-gradient-to-br from-slate-900 to-indigo-950/20 border border-slate-800 rounded-2xl p-5 shadow-lg">
+          <div class="flex items-center gap-2 mb-3">
+            <span class="text-xl">💡</span>
+            <h3 class="text-base font-bold text-white">Stamina & Focus Tips</h3>
+          </div>
+          <ul id="focus-tips-list" class="space-y-2 text-xs text-slate-300">
+            <li class="flex items-start gap-2">
+              <span class="text-amber-400 font-bold">•</span>
+              <span>Write the ONE thing you'll finish this block before you start.</span>
+            </li>
+            <li class="flex items-start gap-2">
+              <span class="text-amber-400 font-bold">•</span>
+              <span>Silence notifications and keep only essential tabs open.</span>
+            </li>
+          </ul>
+        </section>
+
+      </div>
+    </div>
+  </main>
+
+  <!-- VERIFICATION & QUIZ MODAL -->
+  <div id="quiz-modal" class="fixed inset-0 bg-slate-950/80 backdrop-blur-sm z-50 flex items-center justify-center p-4 hidden">
+    <div class="bg-slate-900 border border-slate-700/80 rounded-2xl max-w-xl w-full p-6 shadow-2xl relative animate-in fade-in zoom-in-95 duration-200">
+      <button onclick="closeQuizModal()" class="absolute top-4 right-4 text-slate-400 hover:text-white text-xl">✕</button>
+
+      <div class="flex items-center gap-3 mb-4">
+        <div class="w-10 h-10 rounded-xl bg-amber-500/10 border border-amber-500/30 flex items-center justify-center text-xl text-amber-400">
+          📜
+        </div>
+        <div>
+          <h3 id="modal-task-title" class="text-lg font-bold text-white">Task Verification</h3>
+          <p class="text-xs text-slate-400">Prove comprehension to claim your XP reward</p>
+        </div>
+      </div>
+
+      <div id="quiz-loading" class="py-8 text-center hidden">
+        <div class="inline-block animate-spin text-3xl mb-2">⏳</div>
+        <p class="text-sm text-slate-400">Consulting the Knowledge Verifier...</p>
+      </div>
+
+      <div id="quiz-content" class="space-y-4">
+        <div class="bg-slate-850 border border-slate-800 rounded-xl p-4">
+          <label class="text-xs font-bold text-amber-400 uppercase tracking-wider block mb-1">Verification Question</label>
+          <p id="quiz-questions-text" class="text-sm text-slate-200 font-medium leading-relaxed">
+            Explain the core concept in your own words.
+          </p>
+        </div>
+
+        <div>
+          <label class="text-xs font-bold text-slate-300 block mb-1">Your Solution / Explanation</label>
+          <textarea id="quiz-answer-input" rows="4" placeholder="Type your answer, key takeaways, or evidence of completion..." class="w-full bg-slate-950 border border-slate-700 rounded-xl p-3 text-sm text-slate-200 placeholder-slate-500 focus:outline-none focus:border-amber-500 resize-none"></textarea>
+        </div>
+
+        <div id="quiz-error-box" class="p-3 bg-rose-500/10 border border-rose-500/20 text-rose-400 text-xs rounded-xl hidden"></div>
+
+        <div class="flex items-center justify-end gap-3 pt-2">
+          <button onclick="closeQuizModal()" class="px-4 py-2 bg-slate-800 hover:bg-slate-700 text-slate-300 text-sm font-semibold rounded-xl">Cancel</button>
+          <button onclick="submitQuizAnswer()" class="px-5 py-2 bg-gradient-to-r from-amber-500 to-orange-500 hover:from-amber-400 hover:to-orange-400 text-slate-950 text-sm font-bold rounded-xl shadow-md transition-all active:scale-95 flex items-center gap-2">
+            <span>🛡️</span>
+            <span>Submit for Grading</span>
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- COACH CHAT DRAWER -->
+  <div id="coach-drawer" class="fixed top-0 right-0 h-full w-full max-w-md bg-slate-900 border-l border-slate-800 shadow-2xl z-50 transform translate-x-full transition-transform duration-300 flex flex-col">
+    <div class="p-4 border-b border-slate-800 flex items-center justify-between bg-slate-850">
+      <div class="flex items-center gap-3">
+        <div class="w-9 h-9 rounded-xl bg-indigo-500/20 border border-indigo-500/30 flex items-center justify-center text-lg">
+          🧙‍♂️
+        </div>
+        <div>
+          <h3 class="text-sm font-bold text-white">GoalQuest AI Coach</h3>
+          <p class="text-[11px] text-slate-400">Motivational dialogue & strategy</p>
+        </div>
+      </div>
+      <button onclick="toggleCoachChat()" class="text-slate-400 hover:text-white text-xl">✕</button>
+    </div>
+
+    <div id="chat-messages" class="flex-1 overflow-y-auto p-4 space-y-3 custom-scroll">
+      <div class="flex items-start gap-2.5">
+        <div class="w-7 h-7 rounded-lg bg-indigo-500/20 flex items-center justify-center text-xs mt-0.5">🧙‍♂️</div>
+        <div class="bg-slate-800 text-slate-200 text-xs p-3 rounded-xl rounded-tl-none max-w-[85%] leading-relaxed border border-slate-700/50">
+          Hello hero! How is your stamina today? Ask me for focus tips, strategy, or let's break down any roadblocks.
+        </div>
+      </div>
+    </div>
+
+    <!-- Quick Prompt Pills -->
+    <div class="p-2 border-t border-slate-800/80 bg-slate-900 flex gap-1.5 overflow-x-auto text-[11px]">
+      <button onclick="sendQuickPrompt('Give me a 5-minute tiny step')" class="px-2.5 py-1 bg-slate-800 hover:bg-slate-700 rounded-full text-slate-300 whitespace-nowrap">⚡ Tiny Step</button>
+      <button onclick="sendQuickPrompt('Remind me why this goal matters')" class="px-2.5 py-1 bg-slate-800 hover:bg-slate-700 rounded-full text-slate-300 whitespace-nowrap">🔥 My Why</button>
+      <button onclick="sendQuickPrompt('How is my pace and streak?')" class="px-2.5 py-1 bg-slate-800 hover:bg-slate-700 rounded-full text-slate-300 whitespace-nowrap">📊 Pace Check</button>
+    </div>
+
+    <div class="p-3 border-t border-slate-800 bg-slate-850 flex gap-2">
+      <input id="chat-input" type="text" placeholder="Ask your coach anything..." class="flex-1 bg-slate-950 border border-slate-700 rounded-xl px-3.5 py-2 text-xs text-slate-200 placeholder-slate-500 focus:outline-none focus:border-indigo-500" onkeydown="if(event.key==='Enter') sendChatMessage()">
+      <button onclick="sendChatMessage()" class="px-3.5 py-2 bg-indigo-600 hover:bg-indigo-500 text-white rounded-xl text-xs font-bold transition-all">Send</button>
+    </div>
+  </div>
+
+  <!-- NEW GOAL MODAL -->
+  <div id="new-goal-modal" class="fixed inset-0 bg-slate-950/80 backdrop-blur-sm z-50 flex items-center justify-center p-4 hidden">
+    <div class="bg-slate-900 border border-slate-700/80 rounded-2xl max-w-lg w-full p-6 shadow-2xl relative">
+      <button onclick="closeNewGoalModal()" class="absolute top-4 right-4 text-slate-400 hover:text-white text-xl">✕</button>
+
+      <div class="flex items-center gap-3 mb-4">
+        <div class="w-10 h-10 rounded-xl bg-orange-500/10 border border-orange-500/30 flex items-center justify-center text-xl text-orange-400">
+          🗺️
+        </div>
+        <div>
+          <h3 class="text-lg font-bold text-white">Create New Campaign Goal</h3>
+          <p class="text-xs text-slate-400">AI planner will break down your objective into Quests</p>
+        </div>
+      </div>
+
+      <div class="space-y-3">
+        <div>
+          <label class="text-xs font-bold text-slate-300 block mb-1">Goal Title</label>
+          <input id="ng-goal" type="text" placeholder="e.g. Learn Linear Algebra for Machine Learning" class="w-full bg-slate-950 border border-slate-700 rounded-xl px-3.5 py-2 text-sm text-slate-200 focus:outline-none focus:border-amber-500">
+        </div>
+        <div>
+          <label class="text-xs font-bold text-slate-300 block mb-1">Your Deep 'Why'</label>
+          <input id="ng-why" type="text" placeholder="e.g. To crack GATE DA and build AI systems" class="w-full bg-slate-950 border border-slate-700 rounded-xl px-3.5 py-2 text-sm text-slate-200 focus:outline-none focus:border-amber-500">
+        </div>
+        <div class="grid grid-cols-2 gap-3">
+          <div>
+            <label class="text-xs font-bold text-slate-300 block mb-1">Deadline (Days)</label>
+            <input id="ng-deadline" type="number" value="28" min="7" max="180" class="w-full bg-slate-950 border border-slate-700 rounded-xl px-3.5 py-2 text-sm text-slate-200 focus:outline-none focus:border-amber-500">
+          </div>
+          <div>
+            <label class="text-xs font-bold text-slate-300 block mb-1">Weekly Hours</label>
+            <input id="ng-hours" type="number" value="6" min="1" max="40" step="0.5" class="w-full bg-slate-950 border border-slate-700 rounded-xl px-3.5 py-2 text-sm text-slate-200 focus:outline-none focus:border-amber-500">
+          </div>
+        </div>
+
+        <div class="flex justify-end gap-3 pt-3">
+          <button onclick="closeNewGoalModal()" class="px-4 py-2 bg-slate-800 text-slate-300 text-sm font-semibold rounded-xl">Cancel</button>
+          <button onclick="createGoalPlan()" id="create-goal-btn" class="px-5 py-2 bg-gradient-to-r from-amber-500 to-orange-500 text-slate-950 text-sm font-bold rounded-xl shadow-md">Generate Quest Plan</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    // --- Audio Synthesis for RPG Chimes (Web Audio API) ---
+    const AudioEngine = {
+      ctx: null,
+      init() {
+        if (!this.ctx) {
+          const AudioContext = window.AudioContext || window.webkitAudioContext;
+          if (AudioContext) this.ctx = new AudioContext();
+        }
+      },
+      playChime(notes, duration = 0.12, type = 'sine') {
+        try {
+          this.init();
+          if (!this.ctx) return;
+          notes.forEach((freq, idx) => {
+            const osc = this.ctx.createOscillator();
+            const gain = this.ctx.createGain();
+            osc.type = type;
+            osc.frequency.value = freq;
+            gain.gain.setValueAtTime(0.08, this.ctx.currentTime + idx * duration);
+            gain.gain.exponentialRampToValueAtTime(0.001, this.ctx.currentTime + (idx + 1) * duration);
+            osc.connect(gain);
+            gain.connect(this.ctx.destination);
+            osc.start(this.ctx.currentTime + idx * duration);
+            osc.stop(this.ctx.currentTime + (idx + 1) * duration);
+          });
+        } catch (e) { /* audio silent fallback */ }
+      },
+      levelUp() { this.playChime([330, 392, 494, 659, 784], 0.14, 'triangle'); },
+      questComplete() { this.playChime([523, 659, 784, 1046], 0.1, 'sine'); },
+      lootDrop() { this.playChime([440, 554, 659, 880], 0.12, 'square'); }
+    };
+
+    // --- Confetti Engine ---
+    function triggerConfetti() {
+      const canvas = document.getElementById('confetti-canvas');
+      if (!canvas) return;
+      const ctx = canvas.getContext('2d');
+      canvas.width = window.innerWidth;
+      canvas.height = window.innerHeight;
+
+      const particles = [];
+      const colors = ['#F59E0B', '#10B981', '#6366F1', '#EC4899', '#3B82F6', '#FBBF24'];
+      for (let i = 0; i < 90; i++) {
+        particles.push({
+          x: canvas.width / 2,
+          y: canvas.height / 2,
+          vx: (Math.random() - 0.5) * 16,
+          vy: (Math.random() - 0.8) * 18,
+          size: Math.random() * 8 + 4,
+          color: colors[Math.floor(Math.random() * colors.length)],
+          rotation: Math.random() * 360,
+          rotSpeed: (Math.random() - 0.5) * 10,
+          life: 1.0
+        });
+      }
+
+      function render() {
+        ctx.clearRect(0, 0, canvas.width, canvas.height);
+        let alive = false;
+        particles.forEach(p => {
+          if (p.life > 0) {
+            alive = true;
+            p.x += p.vx;
+            p.y += p.vy;
+            p.vy += 0.45; // gravity
+            p.life -= 0.015;
+            p.rotation += p.rotSpeed;
+            ctx.save();
+            ctx.translate(p.x, p.y);
+            ctx.rotate((p.rotation * Math.PI) / 180);
+            ctx.fillStyle = p.color;
+            ctx.globalAlpha = Math.max(0, p.life);
+            ctx.fillRect(-p.size / 2, -p.size / 2, p.size, p.size);
+            ctx.restore();
+          }
+        });
+        if (alive) requestAnimationFrame(render);
+        else ctx.clearRect(0, 0, canvas.width, canvas.height);
+      }
+      render();
+    }
+
+    // --- State & App Core ---
+    const AppState = {
+      userId: 1,
+      goalId: 1,
+      energy: 3,
+      mood: 4,
+      dashboard: null,
+      activeTaskId: null,
+      quests: [
+        { id: 1, key: 't1', title: 'Vector Spaces & Subspaces', kind: 'learn', minutes: 45, difficulty: 1, is_boss: false, status: 'unlocked', xp: 30, done_when: 'explain basic axioms and spanning sets' },
+        { id: 2, key: 't2', title: 'Basis and Dimension Practice Set', kind: 'do', minutes: 60, difficulty: 2, is_boss: false, status: 'locked', xp: 55, done_when: 'solve 5 linear independence problems' },
+        { id: 3, key: 't3', title: 'Review Rank-Nullity Theorem', kind: 'review', minutes: 20, difficulty: 1, is_boss: false, status: 'locked', xp: 20, done_when: 'write summary notes on dimension formulas' },
+        { id: 4, key: 't4', title: 'Boss Quest: Comprehensive Mock Challenge', kind: 'do', minutes: 90, difficulty: 3, is_boss: true, status: 'locked', xp: 120, done_when: 'score >= 80% on 10 matrix questions' },
+      ],
+      userXP: 0,
+      userStreak: 1,
+      userFreezes: 1,
+      userLevel: 1,
+      badges: ['first_blood']
+    };
+
+    // --- API Helpers ---
+    async function apiCall(endpoint, method = 'GET', body = null) {
+      try {
+        const opts = { method, headers: { 'Content-Type': 'application/json' } };
+        if (body) opts.body = JSON.stringify(body);
+        const res = await fetch(endpoint, opts);
+        if (res.ok) return await res.json();
+      } catch (e) {
+        console.warn('Backend API offline or unreachable, running in local simulated mode.', e);
+      }
+      return null;
+    }
+
+    // --- UI Renderers ---
+    function updateHUD(data) {
+      if (!data) return;
+      document.getElementById('user-name').innerText = data.user_name || 'Harish';
+      document.getElementById('user-rank').innerText = data.rank || 'Apprentice';
+      document.getElementById('level-badge').innerText = `LVL ${data.level || 1}`;
+      document.getElementById('current-xp').innerText = data.xp || 0;
+      document.getElementById('next-lvl-xp').innerText = (data.xp || 0) + (data.xp_to_next || 50);
+      document.getElementById('today-xp').innerText = data.today_xp || 0;
+      document.getElementById('streak-count').innerText = data.streak || 1;
+      document.getElementById('freeze-count').innerText = data.freezes || 1;
+      document.getElementById('active-goal-title').innerText = data.goal || 'Learn Linear Algebra';
+      document.getElementById('progress-text').innerText = `${data.progress_pct || 0}% Completed`;
+
+      // XP Progress Bar
+      const totalNext = (data.xp || 0) + (data.xp_to_next || 50);
+      const pct = Math.min(100, Math.round(((data.xp || 0) / (totalNext || 1)) * 100));
+      document.getElementById('xp-bar-fill').style.width = `${pct}%`;
+
+      // Daily Cap Progress
+      const capPct = Math.min(100, Math.round(((data.today_xp || 0) / 400) * 100));
+      document.getElementById('daily-cap-fill').style.width = `${capPct}%`;
+
+      // Ahead of pace
+      const paceEl = document.getElementById('pace-indicator');
+      const ahead = data.days_ahead_of_pace || 0;
+      if (ahead >= 0) {
+        paceEl.innerText = `⚡ ${ahead.toFixed(1)}d Ahead of Pace`;
+        paceEl.className = 'text-emerald-400 font-semibold';
+      } else {
+        paceEl.innerText = `⚠️ ${Math.abs(ahead).toFixed(1)}d Behind Pace`;
+        paceEl.className = 'text-amber-400 font-semibold';
+      }
+
+      // Badges
+      const badges = data.badges || AppState.badges;
+      document.getElementById('badges-count').innerText = `${badges.length} / 6`;
+      badges.forEach(b => {
+        const el = document.getElementById(`badge-${b}`);
+        if (el) {
+          el.classList.remove('opacity-40');
+          el.classList.add('border-amber-500/50', 'bg-gradient-to-b', 'from-slate-800', 'to-amber-950/20', 'shadow-md', 'shadow-amber-500/10');
+        }
+      });
+    }
+
+    function renderQuests(quests) {
+      const container = document.getElementById('quests-container');
+      container.innerHTML = '';
+
+      quests.forEach(q => {
+        const isDone = q.status === 'done';
+        const isLocked = q.status === 'locked';
+        const isBoss = q.is_boss;
+
+        const card = document.createElement('div');
+        card.className = `p-4 rounded-xl border transition-all flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 ${
+          isDone ? 'bg-slate-900/60 border-emerald-500/30 opacity-75' :
+          isBoss ? 'bg-gradient-to-r from-purple-950/40 via-slate-900 to-slate-850 border-purple-500/50 shadow-lg shadow-purple-500/10' :
+          isLocked ? 'bg-slate-900/40 border-slate-800 opacity-60' :
+          'bg-slate-850 border-slate-750 hover:border-amber-500/40 shadow-md'
+        }`;
+
+        const kindBadge = 
+          q.kind === 'learn' ? '<span class="px-2 py-0.5 rounded text-[10px] font-bold bg-blue-500/10 text-blue-400 border border-blue-500/20">📘 Learn</span>' :
+          q.kind === 'do' ? '<span class="px-2 py-0.5 rounded text-[10px] font-bold bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">⚔️ Practice</span>' :
+          '<span class="px-2 py-0.5 rounded text-[10px] font-bold bg-purple-500/10 text-purple-400 border border-purple-500/20">🔄 Review</span>';
+
+        const bossBadge = isBoss ? '<span class="px-2 py-0.5 rounded text-[10px] font-black bg-purple-500/20 text-purple-300 border border-purple-500/40 animate-pulse">👑 BOSS QUEST (1.5x XP)</span>' : '';
+
+        card.innerHTML = `
+          <div class="flex items-start gap-3.5">
+            <div class="w-10 h-10 rounded-xl flex items-center justify-center text-lg mt-0.5 ${
+              isDone ? 'bg-emerald-500/20 text-emerald-400' :
+              isBoss ? 'bg-purple-500/20 text-purple-300' :
+              isLocked ? 'bg-slate-800 text-slate-500' :
+              'bg-amber-500/20 text-amber-400'
+            }">
+              ${isDone ? '✅' : isBoss ? '👑' : isLocked ? '🔒' : '⚔️'}
+            </div>
+            <div>
+              <div class="flex items-center gap-2 flex-wrap mb-1">
+                ${bossBadge}
+                ${kindBadge}
+                <span class="text-xs text-slate-400 font-medium">⏱️ ${q.minutes} mins</span>
+                <span class="text-xs font-semibold text-amber-400">✨ ~${q.xp || 40} XP</span>
+              </div>
+              <h4 class="text-sm font-bold text-white">${q.title}</h4>
+              <p class="text-xs text-slate-400 mt-0.5">Done when: ${q.done_when || 'Demonstrate mastery'}</p>
+            </div>
+          </div>
+
+          <div>
+            ${
+              isDone ? '<span class="text-xs font-bold text-emerald-400 px-3 py-1.5 rounded-lg bg-emerald-500/10 border border-emerald-500/20">Completed</span>' :
+              isLocked ? '<button disabled class="text-xs font-semibold text-slate-500 px-3 py-1.5 rounded-lg bg-slate-800 border border-slate-700 cursor-not-allowed">Locked (Prereqs)</button>' :
+              `<button onclick="openVerificationModal(${q.id})" class="px-4 py-2 bg-gradient-to-r from-amber-500 to-orange-500 hover:from-amber-400 hover:to-orange-400 text-slate-950 text-xs font-bold rounded-xl shadow-md transition-all active:scale-95 flex items-center gap-1.5">
+                <span>⚔️</span>
+                <span>Verify & Claim XP</span>
+              </button>`
+            }
+          </div>
+        `;
+        container.appendChild(card);
+      });
+    }
+
+    // --- Controls & Handlers ---
+    function updateEnergyDisplay(val) {
+      AppState.energy = parseInt(val);
+      const label = document.getElementById('energy-label');
+      const text = 
+        val <= 2 ? `⚡ Low (${val})` :
+        val >= 4 ? `⚡⚡⚡ High (${val})` :
+        `⚡⚡ Medium (${val})`;
+      label.innerText = text;
+    }
+
+    function setMood(val) {
+      AppState.mood = val;
+      const btns = document.querySelectorAll('.mood-btn');
+      btns.forEach((b, idx) => {
+        if (idx + 1 === val) {
+          b.className = 'mood-btn flex-1 py-1.5 rounded-lg bg-indigo-500/20 text-lg border border-indigo-500/50 shadow-sm';
+        } else {
+          b.className = 'mood-btn flex-1 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-lg border border-transparent';
+        }
+      });
+      const names = ['', 'Exhausted (1)', 'Low (2)', 'Neutral (3)', 'Focused (4)', 'Energized (5)'];
+      document.getElementById('mood-label').innerText = names[val];
+    }
+
+    async function submitCheckin() {
+      const note = document.getElementById('checkin-note').value;
+      const payload = {
+        user_id: AppState.userId,
+        goal_id: AppState.goalId,
+        checkin: {
+          energy: AppState.energy,
+          mood: AppState.mood,
+          minutes_focused: 45,
+          distractions: 1,
+          note: note
+        }
+      };
+
+      const res = await apiCall('/checkin', 'POST', payload);
+      if (res) {
+        document.getElementById('coach-message-text').innerText = `"${res.message || 'Keep the momentum going!'}"`;
+        document.getElementById('bandit-arm-tag').innerText = res.arm || 'gentle_nudge';
+        if (res.tips && res.tips.length > 0) {
+          const list = document.getElementById('focus-tips-list');
+          list.innerHTML = res.tips.map(t => `<li class="flex items-start gap-2"><span class="text-amber-400 font-bold">•</span><span>${t}</span></li>`).join('');
+        }
+      } else {
+        // Fallback local simulation
+        document.getElementById('coach-message-text').innerText = `"Matched today's quests to your Energy level (${AppState.energy}). Focus on one small win first!"`;
+      }
+      AudioEngine.playChime([440, 554, 659], 0.1);
+    }
+
+    // --- Modal Verification Flow ---
+    async function openVerificationModal(taskId) {
+      AppState.activeTaskId = taskId;
+      const task = AppState.quests.find(q => q.id === taskId);
+      document.getElementById('modal-task-title').innerText = task ? `Verify: ${task.title}` : 'Task Verification';
+      document.getElementById('quiz-questions-text').innerText = task ? `Explain how you satisfied: "${task.done_when}". Include code, proof, or key definitions.` : 'Explain the solution';
+      document.getElementById('quiz-answer-input').value = '';
+      document.getElementById('quiz-error-box').classList.add('hidden');
+      document.getElementById('quiz-modal').classList.remove('hidden');
+
+      // Attempt live quiz generation
+      const qRes = await apiCall(`/tasks/${taskId}/quiz`, 'POST');
+      if (qRes && qRes.questions && qRes.questions.length > 0) {
+        document.getElementById('quiz-questions-text').innerText = qRes.questions.join(' ');
+      }
+    }
+
+    function closeQuizModal() {
+      document.getElementById('quiz-modal').classList.add('hidden');
+    }
+
+    async function submitQuizAnswer() {
+      const answer = document.getElementById('quiz-answer-input').value.trim();
+      if (!answer) {
+        const err = document.getElementById('quiz-error-box');
+        err.innerText = 'Please provide an answer or proof of work before grading.';
+        err.classList.remove('hidden');
+        return;
+      }
+
+      const res = await apiCall(`/tasks/${AppState.activeTaskId}/verify`, 'POST', {
+        user_id: AppState.userId,
+        answer: answer
+      });
+
+      closeQuizModal();
+
+      // Mark task completed & advance unlock
+      const task = AppState.quests.find(q => q.id === AppState.activeTaskId);
+      if (task) {
+        task.status = 'done';
+        const nextTask = AppState.quests.find(q => q.status === 'locked');
+        if (nextTask) nextTask.status = 'unlocked';
+      }
+
+      // Award XP
+      const awarded = (res && res.reward && res.reward.xp_awarded) || (task ? task.xp : 40);
+      AppState.userXP += awarded;
+      AppState.userStreak += 1;
+      if (!AppState.badges.includes('first_blood')) AppState.badges.push('first_blood');
+
+      // Refresh HUD & Quests
+      updateHUD({
+        xp: AppState.userXP,
+        xp_to_next: Math.max(10, 100 - AppState.userXP),
+        today_xp: awarded,
+        streak: AppState.userStreak,
+        freezes: AppState.userFreezes,
+        level: AppState.userLevel,
+        progress_pct: Math.round((AppState.quests.filter(q => q.status === 'done').length / AppState.quests.length) * 100),
+        days_ahead_of_pace: 0.5,
+        badges: AppState.badges
+      });
+      renderQuests(AppState.quests);
+
+      // Sound & Confetti Celebration
+      AudioEngine.questComplete();
+      triggerConfetti();
+
+      // Loot Roll Notification
+      setTimeout(() => {
+        if (Math.random() < 0.5) {
+          AudioEngine.lootDrop();
+          const vault = document.getElementById('loot-history');
+          const item = document.createElement('div');
+          item.className = 'p-3 bg-amber-500/10 rounded-xl border border-amber-500/30 flex items-center justify-between text-amber-300 animate-bounce';
+          item.innerHTML = '<span>✨ Bonus Loot Drop! +25 Bonus XP</span><span class="text-xs font-bold">Claimed</span>';
+          vault.prepend(item);
+        }
+      }, 700);
+    }
+
+    // --- Coach Chat Drawer Flow ---
+    function toggleCoachChat() {
+      const drawer = document.getElementById('coach-drawer');
+      drawer.classList.toggle('translate-x-full');
+    }
+
+    function sendQuickPrompt(prompt) {
+      document.getElementById('chat-input').value = prompt;
+      sendChatMessage();
+    }
+
+    async function sendChatMessage() {
+      const input = document.getElementById('chat-input');
+      const text = input.value.trim();
+      if (!text) return;
+      input.value = '';
+
+      const container = document.getElementById('chat-messages');
+
+      // User Bubble
+      const userBubble = document.createElement('div');
+      userBubble.className = 'flex items-start gap-2.5 justify-end';
+      userBubble.innerHTML = `<div class="bg-amber-500 text-slate-950 font-medium text-xs p-3 rounded-xl rounded-tr-none max-w-[85%] leading-relaxed">${text}</div>`;
+      container.appendChild(userBubble);
+      container.scrollTop = container.scrollHeight;
+
+      // API Call
+      const res = await apiCall('/chat', 'POST', {
+        user_id: AppState.userId,
+        goal_id: AppState.goalId,
+        message: text
+      });
+
+      const reply = res && res.reply ? res.reply : 
+        "You're making great progress on Linear Algebra! Finish today's vector space quiz to solidify the axioms and protect your streak.";
+
+      // Coach Bubble
+      const coachBubble = document.createElement('div');
+      coachBubble.className = 'flex items-start gap-2.5';
+      coachBubble.innerHTML = `
+        <div class="w-7 h-7 rounded-lg bg-indigo-500/20 flex items-center justify-center text-xs mt-0.5">🧙‍♂️</div>
+        <div class="bg-slate-800 text-slate-200 text-xs p-3 rounded-xl rounded-tl-none max-w-[85%] leading-relaxed border border-slate-700/50">${reply}</div>
+      `;
+      container.appendChild(coachBubble);
+      container.scrollTop = container.scrollHeight;
+    }
+
+    // --- New Goal Modal Flow ---
+    function openNewGoalModal() {
+      document.getElementById('new-goal-modal').classList.remove('hidden');
+    }
+    function closeNewGoalModal() {
+      document.getElementById('new-goal-modal').classList.add('hidden');
+    }
+
+    async function createGoalPlan() {
+      const goal = document.getElementById('ng-goal').value.trim();
+      const why = document.getElementById('ng-why').value.trim();
+      const deadline = parseInt(document.getElementById('ng-deadline').value) || 28;
+      const hours = parseFloat(document.getElementById('ng-hours').value) || 6.0;
+
+      if (!goal) return;
+      const btn = document.getElementById('create-goal-btn');
+      btn.innerText = 'Consulting Planner...';
+      btn.disabled = true;
+
+      const res = await apiCall('/goals', 'POST', {
+        user_id: AppState.userId,
+        goal: goal,
+        why: why,
+        deadline_days: deadline,
+        weekly_hours: hours
+      });
+
+      btn.innerText = 'Generate Quest Plan';
+      btn.disabled = false;
+      closeNewGoalModal();
+
+      if (res && res.plan) {
+        document.getElementById('active-goal-title').innerText = goal;
+        triggerConfetti();
+        AudioEngine.levelUp();
+      }
+    }
+
+    // --- Init App ---
+    window.addEventListener('DOMContentLoaded', async () => {
+      renderQuests(AppState.quests);
+      updateHUD({
+        xp: 0,
+        xp_to_next: 50,
+        today_xp: 0,
+        streak: 1,
+        freezes: 1,
+        level: 1,
+        progress_pct: 0,
+        days_ahead_of_pace: 0.0,
+        badges: ['first_blood']
+      });
+
+      // Probe backend dashboard
+      const dash = await apiCall(`/dashboard/${AppState.userId}/${AppState.goalId}`);
+      if (dash) {
+        updateHUD(dash);
+        document.getElementById('connection-text').innerText = 'Connected';
+        document.getElementById('connection-pill').className = 'flex items-center gap-2 px-3 py-1 bg-emerald-500/10 border border-emerald-500/20 rounded-full text-xs font-medium text-emerald-400';
+      } else {
+        document.getElementById('connection-text').innerText = 'Simulated Mode';
+        document.getElementById('connection-pill').className = 'flex items-center gap-2 px-3 py-1 bg-amber-500/10 border border-amber-500/20 rounded-full text-xs font-medium text-amber-400';
+      }
+
+      // Fetch real tasks if available
+      const realTasks = await apiCall(`/goals/${AppState.goalId}/tasks`);
+      if (realTasks && realTasks.length > 0) {
+        AppState.quests = realTasks;
+        renderQuests(AppState.quests);
+      }
+    });
+  </script>
+</body>
+</html>
+
